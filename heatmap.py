@@ -112,7 +112,7 @@ def worker(node_id, key_range, known_address, log_file, heatmap):
 
     return None
 
-def find_private_key_optimized(start_range, end_range, known_address, log_file, num_nodes=4):
+def find_private_key_optimized(start_range, end_range, known_address, log_file, num_nodes=8):
     heatmap = load_heatmap()
 
     if not heatmap:

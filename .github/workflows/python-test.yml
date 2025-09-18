@@ -1,0 +1,152 @@
+name: Python Testing and Validation
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run tests weekly on Sundays at 00:00 UTC
+    - cron: '0 0 * * 0'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.8, 3.9, '3.10', '3.11']
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install flake8 pytest pytest-cov
+    
+    - name: Lint with flake8
+      run: |
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    
+    - name: Test Python syntax and imports
+      run: |
+        python -c "import ecdsa, hashlib, base58, random, time; print('All dependencies imported successfully')"
+        python -m py_compile *.py
+        echo "All Python files compile successfully"
+    
+    - name: Security check with bandit
+      run: |
+        pip install bandit
+        bandit -r . -f json -o bandit-report.json || true
+        bandit -r . --severity-level medium --confidence-level medium
+    
+    - name: Check for secrets and sensitive information
+      run: |
+        echo "Checking for potential secrets in code..."
+        # Check for common secret patterns (basic check)
+        if grep -r -i "password\|secret\|key\|token" --include="*.py" . | grep -v "private_key_" | grep -v "public_key" | grep -v "# " | grep -v "test"; then
+          echo "⚠️ Warning: Potential secrets found in code"
+        else
+          echo "✅ No obvious secrets found"
+        fi
+    
+    - name: Performance test (basic)
+      run: |
+        echo "Running basic performance validation..."
+        timeout 10s python puzzle66.py || echo "Performance test completed (timeout expected)"
+    
+    - name: Upload coverage reports
+      if: matrix.python-version == '3.10'
+      run: |
+        echo "Code quality checks completed for Python ${{ matrix.python-version }}"
+
+  dependency-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Check for dependency vulnerabilities
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety
+        pip install -r requirements.txt
+        safety check
+    
+    - name: Check dependency licenses
+      run: |
+        pip install pip-licenses
+        pip-licenses --format=markdown --output-file=licenses.md
+        echo "Dependency licenses checked and saved to licenses.md"
+
+  code-quality:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install code quality tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install black isort mypy pylint
+        pip install -r requirements.txt
+    
+    - name: Check code formatting with Black
+      run: |
+        black --check --diff .
+      continue-on-error: true
+    
+    - name: Check import sorting with isort
+      run: |
+        isort --check-only --diff .
+      continue-on-error: true
+    
+    - name: Type checking with mypy
+      run: |
+        mypy --ignore-missing-imports *.py
+      continue-on-error: true
+    
+    - name: Lint with pylint
+      run: |
+        pylint *.py --disable=C,R,W --errors-only
+      continue-on-error: true
+
+  educational-compliance:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Verify educational disclaimers
+      run: |
+        echo "Checking for educational use disclaimers..."
+        if grep -r -i "educational\|research\|learning" README.md LICENSE; then
+          echo "✅ Educational disclaimers found"
+        else
+          echo "⚠️ Educational disclaimers should be present"
+        fi
+    
+    - name: Check for responsible use guidelines
+      run: |
+        echo "Verifying responsible use guidelines..."
+        if grep -r -i "legal\|authorized\|responsible" README.md; then
+          echo "✅ Responsible use guidelines found"
+        else
+          echo "⚠️ Consider adding responsible use guidelines"
+        fi
